@@ -1,20 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:orientation="vertical"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
+              xmlns:tools="http://schemas.android.com/tools"
+              android:orientation="vertical"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              tools:context=".MainActivity" android:background="#C7EDCC">
 
-    <EditText
-            android:layout_width="match_parent"
-            android:layout_height="234dp"
-            android:inputType="textMultiLine|textPersonName"
-            android:ems="10"
-            android:id="@+id/txtPutObj" android:hint="add obj here" android:gravity="top|left"/>
     <Button
             android:text="显示/关闭 悬浮窗"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:id="@+id/btnFloatShow"/>
+    <Button
+            android:text="设置"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:id="@+id/btnMain2Setting"/>
+    <TextView
+            android:layout_width="match_parent"
+            android:layout_height="400dp" android:id="@+id/tvMainWordDisplay"/>
+    <Button
+            android:text="NEXT"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:id="@+id/btnMainNext"/>
 
 </LinearLayout>

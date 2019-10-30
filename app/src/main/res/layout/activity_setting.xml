@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:orientation="vertical"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent" android:background="#C7EDCC">
+
+    <EditText
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:inputType="textMultiLine|textPersonName"
+            android:ems="10"
+            android:id="@+id/etPutObj" android:hint="add obj here" android:gravity="top|left"/>
+    <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+        <Button
+                android:text="长按添加\n新数据"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:id="@+id/btnSettingAdd"/>
+        <Button
+                android:text="长按删除\n所有数据"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:id="@+id/btnSettingRemoveAll"/>
+        <LinearLayout
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+            <TextView
+                    android:text="HourlyObjBox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:id="@+id/tvSettingMode" android:layout_weight="1"/>
+            <Switch
+                    android:text="添加模式"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:id="@+id/swSettingMode" android:layout_weight="1"/>
+        </LinearLayout>
+    </LinearLayout>
+    <ListView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" android:id="@+id/listViewSetting"/>
+</LinearLayout>

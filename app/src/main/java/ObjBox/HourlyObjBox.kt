@@ -5,7 +5,7 @@ import io.objectbox.annotation.Id
 import java.util.*
 
 @Entity
-data class HourlyObj (
+data class HourlyObjBox (
     @Id var id: Long = 0,
     var pmData: Int? = null,
     var createAt: Date? = null,
