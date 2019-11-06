@@ -36,7 +36,7 @@
     },
     {
       "id": "5:1422248397350739273",
-      "lastPropertyId": "6:2590707348480627943",
+      "lastPropertyId": "7:3370162153679167997",
       "name": "WordsObjBox",
       "properties": [
         {
@@ -69,6 +69,12 @@
           "id": "6:2590707348480627943",
           "name": "sentenceCN",
           "type": 9
+        },
+        {
+          "id": "7:3370162153679167997",
+          "name": "wordId",
+          "type": 5,
+          "flags": 4
         }
       ],
       "relations": []

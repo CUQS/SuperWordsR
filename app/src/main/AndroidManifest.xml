@@ -21,7 +21,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".SettingActivity"></activity>
+        <activity android:name=".SettingActivity"
+                  android:launchMode="singleTask">
+        </activity>
+        <activity android:name=".WordsActivity"
+                  android:launchMode="singleTask">
+        </activity>
         <service android:name="com.lzf.easyfloat.service.FloatService" />
     </application>
 

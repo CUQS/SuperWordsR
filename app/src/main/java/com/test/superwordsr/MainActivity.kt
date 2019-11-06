@@ -1,6 +1,7 @@
 package com.test.superwordsr
 
 import ObjBox.HourlyObjBox
+import ObjBox.HourlyObjBox_
 import ObjBox.ObjectBox
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -25,18 +26,28 @@ import org.jsoup.nodes.Document
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.regex.Pattern
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
 
-class MainActivity : AppCompatActivity(), View.OnClickListener {
+
+class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClickListener {
 
     private lateinit var hourlyObjBox: Box<HourlyObjBox>  // 小时数据库
     private var floatFlag: Boolean = true  // 是否显示悬浮窗flag
     private lateinit var pmGetTd: Thread  // 爬取pm线程
     private val patternDate = Pattern.compile("（AQI）。 ([-0-9]+)")  // 提取pm数据
     private val patternTime = Pattern.compile("更新时间[^\\d]{0,20}([0-9]+):[0-9]+")  // 提取温度和时间数据
-    private var todayPm = -1  // 爬取的pm
-    private lateinit var todayPmDate: Date  // 爬取的pm的更新时间
+    private var hourlyObjNow = HourlyObjBox()  // 存储当前小时的obj数据
     private var tdFlag = false  // 是否爬取结束标志
-    private val formatter: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd-HH", Locale.CHINA)  // 日期格式
+    private lateinit var wordsReviewEnv: WordsReviewEnv  // 记单词环境框架
+    private var pmTxtDrawFlag = true  // 是否绘制了pm
+    private var jsoupFlag = false  // jsoup是否完成爬取
+    // 画笔绘pm数据
+    private lateinit var baseBitmap: Bitmap
+    private lateinit var pmCanvas: Canvas
+    private val paint: Paint = Paint()
 
     /**
      * 初始化UI
@@ -48,8 +59,20 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         setContentView(R.layout.activity_main)
         initUI()  // 初始化UI
         hourlyObjBox = ObjectBox.boxStore.boxFor()  // 初始化ObjectBox
+        wordsReviewEnv = WordsReviewEnv()  // 初始化记单词环境框架
         checkPermission()  // 初始化悬浮窗
-        pmGetTd.start()  // 开启线程
+        val dateNow = Date()
+        val hourlyObjNowTemp = hourlyObjBox.query().equal(HourlyObjBox_.createAt, dateNow).build().findFirst()
+        if (hourlyObjNowTemp!=null) {
+            if (hourlyObjNow.pmData>0) {
+                tdFlag = false
+                hourlyObjNow.pmData = hourlyObjNowTemp.pmData
+                hourlyObjNowTemp.createAt = hourlyObjNow.createAt!!
+            }
+        }
+        if (tdFlag) pmGetTd.start()  // 开启线程
+        // 作pm图
+        initialPmCanvas()
     }
     /**
      * 退出时dismiss悬浮窗
@@ -60,7 +83,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
     /**
      * btnFloatShow
-     * btnSetting
+     * btnMain2Setting
+     * btnMainNext、btnMainBack、btnMainEasy、btnMainSave
      */
     @SuppressLint("SetTextI18n")
     override fun onClick(v: View?) {
@@ -73,13 +97,89 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
             // 启动SettingActivity
             btnMain2Setting -> {
-                startActivity(Intent(this, SettingActivity::class.java))
+                startActivity(Intent(this, WordsActivity::class.java))
             }
-            // 下一个单词
+            // 下一个单词按钮
             btnMainNext -> {
-                tvMainWordDisplay.text = "pm: $todayPm\ndate: ${date2string(todayPmDate)}"
+                when (btnMainNext.text) {
+                    // 初始化记单词框架
+                    "START" -> {
+                        wordsReviewEnv.initEnv()
+                        tvMainWordDisplay.textSize = 26.0F
+                        tvMainWordDisplay.text = wordsReviewEnv.getRemWord()
+                        btnMainNext.text = "REMEMBER"
+                        btnMainBack.text = "FORGET"
+                        btnMainSave.isEnabled = true
+                        btnMainBack.isEnabled = true
+                        btnMainEasy.isEnabled = true
+                        tvMainEnvInfo.text = wordsReviewEnv.getEnvAllInfo()
+                    }
+                    // 记得
+                    "REMEMBER" -> {
+                        tvMainWordDisplay.textSize = 18.0F
+                        tvMainWordDisplay.text = wordsReviewEnv.step("REMEMBER")
+                        btnMainNext.text = "NEXT"
+                        btnMainBack.text = "MISTAKE"
+                        btnMainEasy.isEnabled = false
+                    }
+                    // 下一个
+                    "NEXT" -> {
+                        tvMainWordDisplay.textSize = 26.0F
+                        tvMainWordDisplay.text = wordsReviewEnv.step("NEXT")
+                        btnMainNext.text = "REMEMBER"
+                        btnMainBack.text = "FORGET"
+                        btnMainEasy.isEnabled = true
+                        tvMainEnvInfo.text = wordsReviewEnv.getEnvAllInfo()
+                    }
+                }
+                initialPmCanvas()
+            }
+            // 上一个单词按钮
+            btnMainBack -> {
+                when (btnMainBack.text) {
+                    // 忘记
+                    "FORGET" -> {
+                        tvMainWordDisplay.textSize = 18.0F
+                        tvMainWordDisplay.text = wordsReviewEnv.step("FORGET")
+                        btnMainNext.text = "NEXT"
+                        btnMainBack.text = "MISTAKE"
+                        btnMainEasy.isEnabled = false
+                    }
+                    // 误操作
+                    "MISTAKE" -> {
+                        tvMainWordDisplay.textSize = 26.0F
+                        tvMainWordDisplay.text = wordsReviewEnv.step("MISTAKE")
+                        btnMainNext.text = "REMEMBER"
+                        btnMainBack.text = "FORGET"
+                        btnMainEasy.isEnabled = true
+                    }
+                }
+                initialPmCanvas()
+            }
+            // Easy 按钮
+            btnMainEasy -> {
+                tvMainWordDisplay.textSize = 26.0F
+                tvMainWordDisplay.text = wordsReviewEnv.step("EASY")
+                btnMainNext.text = "NEXT"
+                btnMainBack.text = "MISTAKE"
+                btnMainEasy.isEnabled = false
+            }
+            // 保存
+            btnMainSave -> {
+                tvMainWordDisplay.text = wordsReviewEnv.step("SAVE")
             }
         }
+    }
+    /**
+     * btnMain2Setting
+     */
+    override fun onLongClick(v: View?): Boolean {
+        when (v) {
+            btnMain2Setting -> {
+                startActivity(Intent(this, SettingActivity::class.java))
+            }
+        }
+        return true
     }
     /**
      * 显示悬浮窗
@@ -92,8 +192,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             .setLayout(R.layout.float_layout, OnInvokeView {
                 // 悬浮窗的点击事件
                 it.findViewById<ImageView>(R.id.imgViewFloat).setOnClickListener {
-                    startActivity(Intent(this, MainActivity::class.java))
-                    Toast.makeText(this, "回到主页", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this, WordsActivity::class.java))
+                    Toast.makeText(this, "添加单词", Toast.LENGTH_SHORT).show()
                 }
                 // load the image with Picasso
                 Picasso.get().load(R.drawable.pokemon).into(it.findViewById<ImageView>(R.id.imgViewFloat))
@@ -125,7 +225,14 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         btnFloatShow.setOnClickListener(this)
         btnMain2Setting.setOnClickListener(this)
         btnMainNext.setOnClickListener(this)
-        todayPmDate = string2date("2012-02-22-02")!!
+        btnMainBack.setOnClickListener(this)
+        btnMainEasy.setOnClickListener(this)
+        btnMainSave.setOnClickListener(this)
+        btnMain2Setting.setOnLongClickListener(this)
+        btnMainSave.isEnabled = false
+        btnMainBack.isEnabled = false
+        btnMainEasy.isEnabled = false
+        hourlyObjNow.createAt = string2date("2012-02-22-02")!!
         pmGetTd = Thread {
             val doc: Document = Jsoup.connect("https://aqicn.org/city/beijing/shijingshangucheng/cn/")
                 .userAgent("Mozilla/5.0 (Windows NT 5.1; zh-CN) AppleWebKit/535.12 (KHTML, like Gecko) Chrome/22.0.1229.79 Safari/535.12")
@@ -138,8 +245,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 for (i in 1 until matcherPm.groupCount()+1) {
                     val foundPm: String? = matcherPm.group(1)
                     var pmInt: Int?
-                    pmInt = foundPm?.toIntOrNull() ?: -1
-                    todayPm = pmInt
+                    pmInt = foundPm?.toIntOrNull() ?: 0
+                    runOnUiThread { hourlyObjNow.pmData = pmInt }
                 }
             }
             var dateString = formatter.format(Date()).substring(0,10)
@@ -151,21 +258,104 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
             dateString = if ((pmTime > -1) && (pmTime < 24))
                 String.format("%s-%2d", dateString, pmTime) else "2222-02-22-02"
-            todayPmDate = string2date(dateString)!!
-            tdFlag = true
+            runOnUiThread {
+                hourlyObjNow.createAt = string2date(dateString)!!
+                jsoupFlag = true
+            }
         }
 
     }
     /**
-     * 字符串转日期
+     * 绘制pm数据
      */
-    private fun string2date(date:String):Date?{
-        return formatter.parse(date)
+    @SuppressLint("SetTextI18n")
+    private fun initialPmCanvas() {
+        if (jsoupFlag && !pmTxtDrawFlag) {
+            jsoupFlag = false
+            pmTxtDrawFlag = true
+        }
+        if (pmTxtDrawFlag) {
+            var paintNowFlag = false
+            if (hourlyObjNow.pmData>0) {
+                tvMainHourly.text = "${hourlyObjNow.pmData}: ${date2string(hourlyObjNow.createAt!!)}"
+                paintNowFlag = true
+            }
+            else tvMainHourly.text = "loading..."
+            val baseX = 180f
+            val d = 15f
+            val gap = 4
+            // 笔触宽度为5，颜色为红色
+            baseBitmap = Bitmap.createBitmap(180, 180, Bitmap.Config.ARGB_8888)
+            pmCanvas = Canvas(baseBitmap)
+            pmCanvas.drawColor(0x00000000)
+            val hourlyObjAll = hourlyObjBox.query().order(HourlyObjBox_.createAt).build().find()
+            var count = hourlyObjAll.size
+            var timeGap = 1
+            var paintFlag = false
+            var pmDataPaint = 0
+            var createAtPaint: Date
+            var dateNowTemp = Date()
+            for (j in 0 until 2) {
+                for (i in 0 until 12) {
+                    if (timeGap>0) timeGap -= 1
+                    if (count>0 && !paintFlag) {
+                        count -= 1
+                        if (paintNowFlag) {
+                            pmDataPaint = hourlyObjNow.pmData
+                            createAtPaint = hourlyObjNow.createAt!!
+                            count += 1
+                            paintNowFlag = false
+                        }
+                        else {
+                            pmDataPaint = hourlyObjAll[count].pmData
+                            createAtPaint = hourlyObjAll[count].createAt!!
+                        }
+                        val hourDiff = getHourDiff(dateNowTemp, createAtPaint)
+                        dateNowTemp = createAtPaint
+                        if (hourDiff >= 1) timeGap = (hourDiff-1).toInt()
+                        paintFlag = true
+                    }
+                    if (count == 0) pmDataPaint = 0
+                    if (timeGap==0) {
+                        paintFlag = false
+                        if (pmDataPaint>0) {
+                            if (pmDataPaint<=50) paint.color = 0xff007d00.toInt()
+                            if (pmDataPaint in 51..100) paint.color = 0xffc1c742.toInt()
+                            if (pmDataPaint in 101..150) paint.color = 0xffb35d00.toInt()
+                            if (pmDataPaint in 151..200) paint.color = 0xffc00000.toInt()
+                            if (pmDataPaint in 201..300) paint.color = 0xff400093.toInt()
+                            if (300<pmDataPaint) paint.color = 0xff5c1919.toInt()
+                        }
+                        else {
+                            pmDataPaint = 15
+                            paint.color = 0xffffffff.toInt()
+                        }
+                    }
+                    else {
+                        pmDataPaint = 15
+                        paint.color = 0xffa9a9a9.toInt()
+                    }
+                    if (pmDataPaint >= 300) pmDataPaint = 300
+                    pmDataPaint /= 5
+                    val rect = if (j == 0)
+                        RectF(baseX - (i + 1) * d, (140 - pmDataPaint).toFloat(), baseX - i * d - gap, 140f)  // 第二行
+                    else
+                        RectF(baseX - (i + 1) * d, (60 - pmDataPaint).toFloat(), baseX - i * d - gap, 60f)  // 第一行
+                    pmCanvas.drawRect(rect, paint)
+                }
+            }
+            imgPm.setImageBitmap(baseBitmap)
+            pmTxtDrawFlag = false
+        }
     }
     /**
-     * 日期转字符串
+     * 计算两 Date 时间差（小时）
      */
-    private fun date2string(date:Date):String{
-        return formatter.format(date)
+    private fun getHourDiff(endDate: Date, startDate: Date): Long {
+        val nh = 1000 * 60 * 60
+        val diff = endDate.time - startDate.time
+        val hour = diff / nh
+        return hour
     }
+
 }

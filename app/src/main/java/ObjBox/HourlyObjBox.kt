@@ -7,7 +7,7 @@ import java.util.*
 @Entity
 data class HourlyObjBox (
     @Id var id: Long = 0,
-    var pmData: Int? = null,
+    var pmData: Int = 0,
     var createAt: Date? = null,
     var wordsRemember: Int = 0
 )
