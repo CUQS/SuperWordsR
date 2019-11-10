@@ -10,7 +10,9 @@ import io.objectbox.Box
 import io.objectbox.kotlin.boxFor
 import kotlinx.android.synthetic.main.activity_words.*
 import ListViewControl.CheckBoxAdapter
-
+import ListViewControl.ViewHolder
+import android.view.Gravity
+import android.widget.Toast
 
 
 class WordsActivity: Activity(), View.OnLongClickListener, View.OnClickListener {
@@ -74,12 +76,12 @@ class WordsActivity: Activity(), View.OnLongClickListener, View.OnClickListener 
                 finish()
             }
             btnWordsNext -> {
-                if ((wordsReviewEnv.wordsAllNum-displayPos*5*displayNum)>0) {
+                if ((wordsReviewEnv.wordsAllNum-displayPos*displayNum)>0) {
                     displayPos += 1
                     displayListView()
                 }
             }
-            btnWordsNext -> {
+            btnWordsBack -> {
                 if (displayPos>1) {
                     displayPos -= 1
                     displayListView()
@@ -89,12 +91,41 @@ class WordsActivity: Activity(), View.OnLongClickListener, View.OnClickListener 
     }
     /**
      * 初始化控件
+     * listViewWords
      */
     private fun initUI() {
         btnWordsExit.setOnClickListener(this)
         btnWordsAdd.setOnLongClickListener(this)
         btnWordsNext.setOnClickListener(this)
         btnWordsBack.setOnClickListener(this)
+        listViewWords.setOnItemClickListener { _, view, position, _ ->
+            val clickIndex = (displayPos-1)*displayNum+position+1
+            val wordsAllInfo = wordsReviewEnv.getAllInfo(clickIndex)
+            val toast: Toast = Toast.makeText(this, wordsAllInfo, Toast.LENGTH_LONG)
+            toast.setGravity(Gravity.CENTER, 0, 0)
+            toast.show()
+            val holder: ViewHolder = view.tag as ViewHolder
+            if (holder.cb.isChecked) {
+                if (clickIndex in wordsReviewEnv.saveList) wordsReviewEnv.saveList.removeAll {x -> x == clickIndex}
+            }
+            else {
+                if (clickIndex !in wordsReviewEnv.saveList) wordsReviewEnv.saveList.add(clickIndex)
+            }
+            holder.cb.toggle()
+            reviewListHash[position]["boolean"] = holder.cb.isChecked
+            wordsReviewEnv.step("SAVE")
+            cbAdapter.notifyDataSetChanged()
+        }
+        listViewWords.setOnItemLongClickListener { _, _, position, _ ->
+            if (wordsReviewEnv.remNow>=(displayPos-1)*displayNum+1 && wordsReviewEnv.remNow<displayPos*displayNum+1) {
+                reviewListHash[wordsReviewEnv.remNow-displayNum*(displayPos-1)-1]["color"] = "TRANSPARENT"
+            }
+            wordsReviewEnv.remNow = (displayPos-1)*displayNum+position+1
+            wordsReviewEnv.step("SAVE")
+            reviewListHash[position]["color"] = "MAGENTA"
+            cbAdapter.notifyDataSetChanged()
+            true
+        }
     }
     /**
      * 显示ListView
@@ -106,11 +137,11 @@ class WordsActivity: Activity(), View.OnLongClickListener, View.OnClickListener 
             addWordFlag = false
         }
         reviewListHash = ArrayList()
-        for (i in displayNum*(displayPos-1)+1 until displayPos*displayNum) {
+        for (i in displayNum*(displayPos-1)+1 until displayPos*displayNum+1) {
             if (i<=wordsReviewEnv.wordsAllNum) {
                 val map: HashMap<String, Any> = HashMap()
                 map["name"] = wordsReviewEnv.wordsObjList[i].word
-                map["boolean"] = i in wordsReviewEnv.rememberList
+                map["boolean"] = i in wordsReviewEnv.saveList
                 if (i==wordsReviewEnv.remNow) map["color"] = "MAGENTA"
                 else map["color"] = "TRANSPARENT"
                 reviewListHash.add(map)

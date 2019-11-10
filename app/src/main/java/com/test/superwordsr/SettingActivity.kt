@@ -160,6 +160,21 @@ class SettingActivity : Activity(), View.OnLongClickListener, View.OnClickListen
             }
             tvSettingMode.text = settingMode
         }
+        listViewSetting.setOnItemLongClickListener { parent, view, position, id ->
+            if (settingMode=="HourlyObjBox") {
+                hourlyObjBox.remove(position.toLong())
+                Toast.makeText(this, "删除！！", Toast.LENGTH_SHORT).show()
+                displayListView(settingMode)
+                if (position>0) listViewSetting.setSelection(position)
+            }
+            if (settingMode=="WordsObjBox") {
+                hourlyObjBox.remove(position.toLong())
+                Toast.makeText(this, "删除！！", Toast.LENGTH_SHORT).show()
+                displayListView(settingMode)
+                if (position>0) listViewSetting.setSelection(position)
+            }
+            true
+        }
     }
     /**
      * 添加 WordsObjBox 的首个obj作为记忆环境配置

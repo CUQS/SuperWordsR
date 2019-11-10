@@ -17,3 +17,12 @@ fun string2date(date:String): Date?{
 fun date2string(date: Date):String{
     return formatter.format(date)
 }
+/**
+ * 计算两 Date 时间差（小时）
+ */
+fun getHourDiff(endDate: Date, startDate: Date): Long {
+    val nh = 1000 * 60 * 60
+    val diff = endDate.time - startDate.time
+    val hour = diff / nh
+    return hour
+}

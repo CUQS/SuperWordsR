@@ -9,13 +9,13 @@ import io.objectbox.kotlin.boxFor
 class WordsReviewEnv {
     private lateinit var wordsObjBox: Box<WordsObjBox>  // WordsObjBox
     lateinit var wordsObjList: List<WordsObjBox>  // 全部单词的Obj
-    lateinit var rememberList: MutableList<Int>  // 复习用记忆序列（逐个pop）
-    private lateinit var saveList: MutableList<Int>  // 用于保存记忆序列（Easy的pop）
+    private lateinit var rememberList: MutableList<Int>  // 复习用记忆序列（逐个pop）
+    lateinit var saveList: MutableList<Int>  // 用于保存记忆序列（Easy的pop）
     private var remLimitNum: Int = 30  // 记忆数量限制
     var remNow: Int = 0  // 当前记忆位置
     var wordsAllNum: Int = 0  // 单词总量
     private var easyFlag: Boolean = false  // 是否为简单词
-    private var remNum = 0  // 记住的量（即确认为 easy）
+    var remNum = 0  // 记住的量（即确认为 easy）
     /**
      * 初始化词库环境
      */
@@ -39,6 +39,10 @@ class WordsReviewEnv {
         val needRemWordsNum = stringRememberList.size
         // String 2 Int
         for (strRem in stringRememberList) {
+            if (strRem=="") {
+                rememberList.add(1)
+                break
+            }
             rememberList.add(strRem.toInt())
         }
         // 判断是否够记忆数量，不够填补
@@ -74,6 +78,7 @@ class WordsReviewEnv {
         if (action=="SAVE") {
             wordsObjList[0].word = saveList.joinToString(",")
             wordsObjList[0].pronounce = remNow.toString()
+            wordsObjBox.put(wordsObjList[0])
             return "SAVED!!"
         }
         // 当前单词的全部信息
@@ -131,7 +136,7 @@ class WordsReviewEnv {
     /**
      * 获取单词的全部信息
      */
-    private fun getAllInfo(wordIndex: Int): String {
+    fun getAllInfo(wordIndex: Int): String {
         return "${wordsObjList[wordIndex].word}\n" +
                 "${wordsObjList[wordIndex].pronounce}\n" +
                 "${wordsObjList[wordIndex].meaning}\n" +
