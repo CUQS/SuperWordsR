@@ -16,6 +16,7 @@ class WordsReviewEnv {
     var wordsAllNum: Int = 0  // 单词总量
     private var easyFlag: Boolean = false  // 是否为简单词
     var remNum = 0  // 记住的量（即确认为 easy）
+    var finishFlag = false  // 结束标志
     /**
      * 初始化词库环境
      */
@@ -24,6 +25,7 @@ class WordsReviewEnv {
         wordsObjList = wordsObjBox.query().order(WordsObjBox_.wordId).build().find()  // 初始化所有单词的Obj
         rememberList = ArrayList()  // 清空 rememberList
         easyFlag  = false  // 初始化简单词 flag
+        finishFlag = false  // 初始化结束 flag
         wordsAllNum = wordsObjList.size - 1 // 初始化单词总量（去掉第0个Env信息的obj）
         // 如果词库为空初始化词库
         if (wordsAllNum < 1) {
@@ -72,8 +74,6 @@ class WordsReviewEnv {
      *
      */
     fun step(action: String): String {
-        // rememberList中没有单词即结束
-        if (rememberList.size==0) return "FINISH"
         // 保存
         if (action=="SAVE") {
             wordsObjList[0].word = saveList.joinToString(",")
@@ -81,6 +81,8 @@ class WordsReviewEnv {
             wordsObjBox.put(wordsObjList[0])
             return "SAVED!!"
         }
+        // rememberList中没有单词即结束
+        if (rememberList.size==0) return "FINISH"
         // 当前单词的全部信息
         if (action=="REMEMBER" || action=="FORGET") return getAllInfo(rememberList[0])
         // 下一个单词信息，如果 easyFlag 则将 saveList 中的对应元素一并删除
@@ -91,8 +93,13 @@ class WordsReviewEnv {
                 easyFlag = false
             }
             rememberList.removeAt(0)
-            return if (rememberList.size==0) "FINISH"
-            else getRemWord()
+            if (rememberList.size==0) {
+                finishFlag = true
+                return "FINISH"
+            }
+            else {
+                return getRemWord()
+            }
         }
         // 将当前单词放入 rememberList的11个以后，下一个单词信息
         if (action=="MISTAKE") {

@@ -1,19 +1,17 @@
 package com.test.superwordsr
 
-import ObjBox.HourlyObjBox
-import ObjBox.ObjectBox
-import ObjBox.WordsObjBox
-import ObjBox.WordsObjBox_
+import ObjBox.*
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.View
+import android.view.Window
+import android.view.WindowManager
 import android.widget.SimpleAdapter
 import android.widget.Toast
 import io.objectbox.Box
 import io.objectbox.kotlin.boxFor
 import kotlinx.android.synthetic.main.activity_setting.*
-import java.text.SimpleDateFormat
-import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 
@@ -32,10 +30,19 @@ class SettingActivity : Activity(), View.OnLongClickListener, View.OnClickListen
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestWindowFeature(Window.FEATURE_NO_TITLE)  // 去除title
+        window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
         setContentView(R.layout.activity_setting)
         initUI()  // 初始化UI
         hourlyObjBox = ObjectBox.boxStore.boxFor()  // 初始化 hourlyObjBox
         wordsObjBox = ObjectBox.boxStore.boxFor()  // 初始化 wordsObjBox
+    }
+
+    override fun onResume() {
+        if (requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        super.onResume()
     }
     /**
      * btnSettingAdd
@@ -57,7 +64,7 @@ class SettingActivity : Activity(), View.OnLongClickListener, View.OnClickListen
                                 break
                             }
                             hourlyObj.pmData = stringItem[0].toInt()
-                            hourlyObj.createAt = string2date(stringItem[1])
+                            hourlyObj.createAt = string2date(stringItem[1])!!
                             hourlyObjBox.put(hourlyObj)
                         }
                     }
@@ -113,12 +120,12 @@ class SettingActivity : Activity(), View.OnLongClickListener, View.OnClickListen
      */
     private fun displayListView(mode:String) {
         if (mode=="HourlyObjBox") {
-            val hourlyObjects = hourlyObjBox.all
+            val hourlyObjects: List<HourlyObjBox> = hourlyObjBox.query().order(HourlyObjBox_.createAt).build().find()
             listData = ArrayList()
             for (i in 0 until hourlyObjects.size) {
                 val createAt = hourlyObjects[i].createAt
                 map = HashMap()
-                map["Data"] = "${hourlyObjects[i].pmData}\n${date2string(createAt!!)}"
+                map["Data"] = "${hourlyObjects[i].pmData}\n${date2string(createAt)}"
                 listData.add(map)
             }
             listViewSetting.adapter = SimpleAdapter(this, listData, R.layout.listview_setting, from, to)
@@ -160,15 +167,18 @@ class SettingActivity : Activity(), View.OnLongClickListener, View.OnClickListen
             }
             tvSettingMode.text = settingMode
         }
-        listViewSetting.setOnItemLongClickListener { parent, view, position, id ->
+        // 长按删除
+        listViewSetting.setOnItemLongClickListener { _, _, position, _ ->
             if (settingMode=="HourlyObjBox") {
-                hourlyObjBox.remove(position.toLong())
+                val hourlyObjects: List<HourlyObjBox> = hourlyObjBox.query().order(HourlyObjBox_.createAt).build().find()
+                hourlyObjBox.remove(hourlyObjects[position])
                 Toast.makeText(this, "删除！！", Toast.LENGTH_SHORT).show()
                 displayListView(settingMode)
                 if (position>0) listViewSetting.setSelection(position)
             }
             if (settingMode=="WordsObjBox") {
-                hourlyObjBox.remove(position.toLong())
+                val wordsObjList = wordsObjBox.query().order(WordsObjBox_.wordId).build().find()  // 初始化所有单词的Obj
+                wordsObjBox.remove(wordsObjList[position])
                 Toast.makeText(this, "删除！！", Toast.LENGTH_SHORT).show()
                 displayListView(settingMode)
                 if (position>0) listViewSetting.setSelection(position)

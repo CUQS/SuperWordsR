@@ -8,6 +8,6 @@ import java.util.*
 data class HourlyObjBox (
     @Id var id: Long = 0,
     var pmData: Int = 0,
-    var createAt: Date? = null,
+    var createAt: Date = Date(),
     var wordsRemember: Int = 0
 )

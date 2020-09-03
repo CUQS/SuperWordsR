@@ -1,10 +1,12 @@
 package com.test.superwordsr
 
-import ObjBox.HourlyObjBox
-import ObjBox.HourlyObjBox_
-import ObjBox.ObjectBox
+import ObjBox.*
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.Gravity
@@ -23,33 +25,36 @@ import io.objectbox.kotlin.boxFor
 import kotlinx.android.synthetic.main.activity_main.*
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
-import java.text.SimpleDateFormat
 import java.util.*
 import java.util.regex.Pattern
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.text.method.ScrollingMovementMethod
 import android.view.Window
+import android.view.WindowManager
 import io.objectbox.query.QueryBuilder
 
 
 class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClickListener {
 
     private lateinit var hourlyObjBox: Box<HourlyObjBox>  // 小时数据库
-    private var floatFlag: Boolean = true  // 是否显示悬浮窗flag
+    private lateinit var wordsObjBox: Box<WordsObjBox>  // WordsObjBox
     private lateinit var pmGetTd: Thread  // 爬取pm线程
     private val patternDate = Pattern.compile("（AQI）。 ([-0-9]+)")  // 提取pm数据
     private val patternTime = Pattern.compile("更新时间[^\\d]{0,20}([0-9]+):[0-9]+")  // 提取温度和时间数据
-    private var hourlyObjNow = HourlyObjBox()  // 存储当前小时的obj数据
+    private lateinit var hourlyObjNow: HourlyObjBox  // 存储当前小时的obj数据
     private var tdFlag = true  // 是否爬取结束标志
     private lateinit var wordsReviewEnv: WordsReviewEnv  // 记单词环境框架
     private var pmTxtDrawFlag = true  // 是否绘制了pm
     private var jsoupFlag = false  // jsoup是否完成爬取
+    private var timeFlag = ""  // 时间测试
     // 画笔绘pm数据
     private lateinit var baseBitmap: Bitmap
     private lateinit var pmCanvas: Canvas
     private lateinit var paint: Paint
+    private var showActivityFlag = true  // 悬浮窗隐藏和显示activity的标志
 
     /**
      * 初始化UI
@@ -60,52 +65,37 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE)  // 去除title
+        window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
         setContentView(R.layout.activity_main)
         initUI()  // 初始化UI
-        hourlyObjBox = ObjectBox.boxStore.boxFor()  // 初始化ObjectBox
+        wordsObjBox = ObjectBox.boxStore.boxFor()  // 初始化 wordsObjBox
         wordsReviewEnv = WordsReviewEnv()  // 初始化记单词环境框架
         checkPermission()  // 初始化悬浮窗
-        val dateNow = Date()
-        val hourlyObjNowTemp = hourlyObjBox.query().order(HourlyObjBox_.createAt, QueryBuilder.DESCENDING).build().findFirst()
-        if (hourlyObjNowTemp!=null) {
-            val timeDiff = getHourDiff(dateNow, hourlyObjNowTemp.createAt!!)
-            if (timeDiff in 0..0) {
-                tvMainHourly.text = "have data in time"
-                tdFlag = false
-                hourlyObjNow.pmData = hourlyObjNowTemp.pmData
-                hourlyObjNow.createAt = hourlyObjNowTemp.createAt!!
-            }
-        }
-        if (tdFlag) {
-            tvMainHourly.text = "loading..."
-            pmGetTd.start()
-        }  // 开启线程
         // 作pm图
         initialPmCanvas()
     }
-    /**
-     * 退出时dismiss悬浮窗
-     */
+
+    override fun onResume() {
+        if (requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        super.onResume()
+    }
+
     override fun onDestroy() {
         EasyFloat.dismissAppFloat(this)
         super.onDestroy()
     }
     /**
-     * btnFloatShow
      * btnMain2Setting
      * btnMainNext、btnMainBack、btnMainEasy、btnMainSave
      */
     @SuppressLint("SetTextI18n")
     override fun onClick(v: View?) {
         when (v) {
-            // 显示和隐藏悬浮窗按钮
-            btnFloatShow -> {
-                if (!floatFlag) EasyFloat.showAppFloat(this)
-                else EasyFloat.hideAppFloat(this)
-                floatFlag = !floatFlag
-            }
-            // 启动SettingActivity
+            // 启动 SettingActivity
             btnMain2Setting -> {
+                showActivityFlag = false
                 startActivity(Intent(this, WordsActivity::class.java))
             }
             // 下一个单词按钮
@@ -138,10 +128,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
                         tvMainWordDisplay.textSize = 26.0F
                         tvMainWordDisplay.textAlignment = View.TEXT_ALIGNMENT_CENTER
                         tvMainWordDisplay.text = wordsReviewEnv.step("NEXT")
-                        if (tvMainWordDisplay.text == "FINISH") {
+                        if (wordsReviewEnv.finishFlag) {
                             btnMainEasy.isEnabled = false
                             btnMainNext.isEnabled = true
                             btnMainBack.isEnabled = false
+                            wordsReviewEnv.step("SAVE")
                             btnMainNext.text = "START"
                         }
                         else {
@@ -193,13 +184,26 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
                 if (tdFlag) {
                     val dateString = formatter.format(Date()).substring(0,13)
                     hourlyObjNow.wordsRemember = wordsReviewEnv.remNum
-                    hourlyObjNow.createAt = string2date(dateString)
+                    hourlyObjNow.createAt = string2date(dateString)!!
                     hourlyObjBox.put(hourlyObjNow)
                 }
                 else {
                     hourlyObjNow.wordsRemember = wordsReviewEnv.remNum
                     hourlyObjBox.put(hourlyObjNow)
                 }
+            }
+            // 启动 GameActivity
+            btnMain2Game -> {
+                showActivityFlag = false
+                startActivity(Intent(this, GameActivity::class.java))
+            }
+            // 获取空气质量
+            btnMainAir -> {
+                if (tdFlag) {
+                    tvMainHourly.text = "loading..."
+                    pmGetTd.start()
+                    btnMainAir.isEnabled = false
+                }  // 开启线程
             }
         }
     }
@@ -208,6 +212,31 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
      */
     override fun onLongClick(v: View?): Boolean {
         when (v) {
+            btnMainSave -> {
+                val wordsObjList = wordsObjBox.query().order(WordsObjBox_.wordId).build().find()  // 初始化所有单词的Obj
+                var stringExport = ""
+                for(wordsI in wordsObjList) {
+                    stringExport = "$stringExport${wordsI.word}##${wordsI.pronounce}##${wordsI.meaning}##${wordsI.sentenceCN}##${wordsI.sentenceJP}\n"
+                }
+                val hourlyObjects: List<HourlyObjBox> = hourlyObjBox.query().order(HourlyObjBox_.createAt).build().find()
+                for(hourlyI in hourlyObjects) {
+                    stringExport = "$stringExport${hourlyI.pmData},${date2string(hourlyI.createAt)}\n"
+                }
+//                tvMainWordDisplay.textSize = 12.0F
+//                tvMainWordDisplay.text = stringExport
+//                val cm: ClipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+//                val mClipdata: ClipData = ClipData.newPlainText("Label", stringExport)
+//                cm.primaryClip = mClipdata
+//                Toast.makeText(this, "已复制到剪切板", Toast.LENGTH_SHORT).show()
+                var share_intent = Intent()
+                share_intent.action = Intent.ACTION_SEND
+                share_intent.type = "text/plain"
+                share_intent.putExtra(Intent.EXTRA_SUBJECT, "share")
+                share_intent.putExtra(Intent.EXTRA_TEXT, stringExport)
+                share_intent = Intent.createChooser(share_intent, "share")
+                startActivity(share_intent)
+//                Toast.makeText(this, "已复制到剪切板", Toast.LENGTH_SHORT).show()
+            }
             btnMain2Setting -> {
                 startActivity(Intent(this, SettingActivity::class.java))
             }
@@ -225,12 +254,21 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
             .setLayout(R.layout.float_layout, OnInvokeView {
                 // 悬浮窗的点击事件
                 it.findViewById<ImageView>(R.id.imgViewFloat).setOnClickListener {
-                    startActivity(Intent(this, WordsActivity::class.java))
-                    Toast.makeText(this, "添加单词", Toast.LENGTH_SHORT).show()
+                    if (showActivityFlag) {
+                        showActivityFlag = false
+                        startActivity(Intent(this, WordsActivity::class.java))
+                        Toast.makeText(this, "添加单词", Toast.LENGTH_SHORT).show()
+                    } else {
+                        showActivityFlag = true
+                        WordsActivity().moveTaskToBack(true)
+                        moveTaskToBack(true)
+                        Toast.makeText(this, "隐藏", Toast.LENGTH_SHORT).show()
+                    }
                 }
                 // load the image with Picasso
-                Picasso.get().load(R.drawable.pokemon).into(it.findViewById<ImageView>(R.id.imgViewFloat))
+                Picasso.get().load(R.drawable.pokemongo).into(it.findViewById<ImageView>(R.id.imgViewFloat))
             })
+            .setFilter(GameActivity::class.java)
             .show()
     }
     /**
@@ -251,25 +289,46 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
     }
     /**
      * 初始化控件
+     * 初始化 hourlyObjBox
      * 初始化默认日期
      * 初始化pmGet线程
      */
+    @SuppressLint("SetTextI18n")
     private fun initUI() {
-        btnFloatShow.setOnClickListener(this)
         btnMain2Setting.setOnClickListener(this)
         btnMainNext.setOnClickListener(this)
+        btnMain2Game.setOnClickListener(this)
+        btnMainAir.setOnClickListener(this)
         btnMainBack.setOnClickListener(this)
         btnMainEasy.setOnClickListener(this)
         btnMainSave.setOnClickListener(this)
         btnMain2Setting.setOnLongClickListener(this)
+        btnMainSave.setOnLongClickListener(this)
         btnMainSave.isEnabled = false
         btnMainBack.isEnabled = false
         btnMainEasy.isEnabled = false
-        hourlyObjNow.createAt = Date()
+        tvMainWordDisplay.movementMethod = ScrollingMovementMethod()
+        hourlyObjBox = ObjectBox.boxStore.boxFor()  // 初始化ObjectBox
+        val dateNow = Date()
+        val hourlyObjNowTemp = hourlyObjBox.query().order(HourlyObjBox_.createAt, QueryBuilder.DESCENDING).build().findFirst()
+        if (hourlyObjNowTemp!=null) {
+            val timeDiff = getHourDiff(dateNow, hourlyObjNowTemp.createAt)
+            if (timeDiff in 0..0) {
+                tvMainHourly.text = "have data in time"
+                tdFlag = false
+                hourlyObjNow = hourlyObjNowTemp
+            }
+            else {
+                hourlyObjNow = HourlyObjBox()
+            }
+        }
+        else {
+            hourlyObjNow = HourlyObjBox()
+        }
         pmGetTd = Thread {
             val doc: Document = Jsoup.connect("https://aqicn.org/city/beijing/shijingshangucheng/cn/")
                 .userAgent("Mozilla/5.0 (Windows NT 5.1; zh-CN) AppleWebKit/535.12 (KHTML, like Gecko) Chrome/22.0.1229.79 Safari/535.12")
-                .timeout(0)
+                .timeout(60000)
                 .get()
             val dataAll = doc.text()
             val matcherPm = patternDate.matcher(dataAll)
@@ -283,6 +342,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
                 }
             }
             var dateString = formatter.format(Date()).substring(0,10)
+            timeFlag = formatter.format(Date()).substring(11,13)
             var pmTime: Int = -1
             while (matcherTime.find()) {
                 for (i in 1 until matcherTime.groupCount()+1) {
@@ -308,7 +368,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
             pmTxtDrawFlag = true
         }
         if (pmTxtDrawFlag) {
-            if (hourlyObjNow.pmData>0) tvMainHourly.text = "${hourlyObjNow.pmData}: ${date2string(hourlyObjNow.createAt!!)}"
+            if (hourlyObjNow.pmData>0) tvMainHourly.text = "${hourlyObjNow.pmData}: ${date2string(hourlyObjNow.createAt)}\ntimeTest$timeFlag"
             val baseX = 180f
             val d = 15f
             val gap = 4
@@ -337,7 +397,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, View.OnLongClick
                         }
                         else {
                             pmDataPaint = hourlyObjAll[count].pmData.toFloat()
-                            createAtPaint = hourlyObjAll[count].createAt!!
+                            createAtPaint = hourlyObjAll[count].createAt
                         }
                         val hourDiff = getHourDiff(dateNowTemp, createAtPaint)
                         dateNowTemp = createAtPaint

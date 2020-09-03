@@ -55,6 +55,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
         <Button
+                android:text="PASTE"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:id="@+id/btnWordsPaste" android:layout_weight="1"/>
+        <Button
                 android:text="上一页"
                 android:layout_width="wrap_content"
                 android:layout_height="50dp" android:id="@+id/btnWordsBack" android:layout_weight="1"/>
